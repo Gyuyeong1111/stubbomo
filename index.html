@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>stubbomo - 학급 스터디 대시보드</title>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #4a90e2;
+            --bg: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .class-name {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+        }
+        h1 { margin: 0; color: var(--primary); font-size: 28px; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 900px;
+        }
+        @media(max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .card h2 { margin-top: 0; font-size: 18px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        
+        /* 다짐 영역 */
+        #motto-text { font-weight: bold; margin-bottom: 10px; }
+        .motto-controls { display: flex; gap: 10px; margin-bottom: 10px; }
+        
+        /* 뽀모도로 */
+        .timer-display { font-size: 48px; font-weight: bold; text-align: center; margin: 20px 0; color: var(--primary); }
+        .btn-group { display: flex; justify-content: center; gap: 10px; }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:hover { opacity: 0.9; }
+
+        /* 게시판 */
+        .post-input { width: calc(100% - 22px); padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px;}
+        .post-list { max-height: 200px; overflow-y: auto; list-style: none; padding: 0; }
+        .post-item { background: #f9f9f9; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
+        .post-author { font-weight: bold; color: var(--primary); margin-right: 5px; }
+
+        /* 로그인 모달 */
+        #login-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-content { background: white; padding: 30px; border-radius: 16px; text-align: center; width: 300px; }
+        .modal-content input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- 로그인 모달 -->
+    <div id="login-modal">
+        <div class="modal-content">
+            <h2 style="color:var(--primary)">stubbomo 시작하기</h2>
+            <p style="font-size: 12px; color: #666;">개인정보 없는 안심 닉네임 로그인</p>
+            <input type="text" id="nickname-input" placeholder="닉네임 (예: 열공파카)">
+            <input type="password" id="pin-input" placeholder="비밀번호 4자리 숫자">
+            <button onclick="login()" style="width: 100%;">입장하기</button>
+        </div>
+    </div>
+
+    <!-- 헤더 -->
+    <div class="header">
+        <h1>stubbomo</h1>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="class-name" onclick="changeClassName()" id="class-name-btn">1학년 3반 ✏️</button>
+            <span id="user-greeting" style="font-weight: bold;"></span>
+        </div>
+    </div>
+
+    <div class="grid">
+        <!-- 오늘의 다짐 커스텀 -->
+        <div class="card">
+            <h2>오늘의 다짐 🎯</h2>
+            <div id="motto-text" style="font-size: 20px; color: #333;">수능 만점 가보자고!</div>
+            <div class="motto-controls">
+                <input type="color" id="motto-color" value="#333333" onchange="updateMotto()">
+                <select id="motto-size" onchange="updateMotto()">
+                    <option value="16px">작게</option>
+                    <option value="20px" selected>보통</option>
+                    <option value="26px">크게</option>
+                </select>
+                <button onclick="editMotto()" style="padding: 5px 10px; font-size: 12px;">문구 수정</button>
+            </div>
+        </div>
+
+        <!-- 뽀모도로 타이머 -->
+        <div class="card">
+            <h2>스카 안심 뽀모도로 ⏱️</h2>
+            <div class="timer-display" id="timer-display">25:00</div>
+            <div class="btn-group">
+                <button onclick="startTimer()">시작</button>
+                <button onclick="pauseTimer()" style="background: #ff9800;">일시정지</button>
+                <button onclick="resetTimer()" style="background: #f44336;">초기화</button>
+            </div>
+        </div>
+
+        <!-- 실시간 학급 공지판 (Firebase 연동) -->
+        <div class="card">
+            <h2>우리 반 수행공지판 📌</h2>
+            <input type="text" id="post-content" class="post-input" placeholder="[과목] 공지사항을 입력하세요 (예: [국어] 내일 프린트 검사)">
+            <button onclick="addPost()" style="width: 100%; margin-bottom: 10px;">등록하기</button>
+            <ul class="post-list" id="post-list">
+                <!-- 실시간 게시글이 여기에 뜹니다 -->
+            </ul>
+        </div>
+
+        <!-- 열공 통계 -->
+        <div class="card">
+            <h2>우리 반 열공 통계 📊</h2>
+            <canvas id="studyChart"></canvas>
+            <p style="font-size: 12px; color: #666; text-align: center; margin-top:10px;">(타이머 완료 시 데이터가 누적됩니다)</p>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (ES Modules) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // 사용자가 보내준 사진 속 Firebase 설정 코드 적용 완료!
+        const firebaseConfig = {
+            apiKey: "AIzaSyCma2nS3VOuajjjaPd8g7loiZmC_CeE1N_o",
+            authDomain: "stubbomo.firebaseapp.com",
+            projectId: "stubbomo",
+            storageBucket: "stubbomo.firebasestorage.app",
+            messagingSenderId: "1053413590696",
+            appId: "1:1053413590696:web:e59a32feefa14611dce49d"
+        };
+
+        // 파이어베이스 초기화
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- 전역 변수 (HTML 인라인 스크립트에서 접근하기 위해 window에 할당) ---
+        let currentUser = localStorage.getItem('stubbomo_user');
+        
+        // 로그인 체크
+        if(currentUser) {
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('user-greeting').innerText = `👋 ${currentUser}님`;
+        }
+
+        window.login = function() {
+            const nick = document.getElementById('nickname-input').value;
+            const pin = document.getElementById('pin-input').value;
+            if(nick && pin.length >= 4) {
+                localStorage.setItem('stubbomo_user', nick);
+                currentUser = nick;
+                document.getElementById('login-modal').classList.add('hidden');
+                document.getElementById('user-greeting').innerText = `👋 ${currentUser}님`;
+            } else {
+                alert("닉네임과 4자리 이상의 비밀번호를 입력해주세요.");
+            }
+        };
+
+        window.changeClassName = function() {
+            const newName = prompt("우리 반 이름을 입력하세요 (예: 2학년 5반):");
+            if(newName) {
+                document.getElementById('class-name-btn').innerText = newName + " ✏️";
+                localStorage.setItem('className', newName);
+            }
+        };
+
+        // 로컬저장소에서 반 이름 불러오기
+        const savedClass = localStorage.getItem('className');
+        if(savedClass) { document.getElementById('class-name-btn').innerText = savedClass + " ✏️"; }
+
+        window.editMotto = function() {
+            const newMotto = prompt("오늘의 다짐을 입력하세요:");
+            if(newMotto) {
+                document.getElementById('motto-text').innerText = newMotto;
+            }
+        };
+
+        window.updateMotto = function() {
+            const color = document.getElementById('motto-color').value;
+            const size = document.getElementById('motto-size').value;
+            const mottoEl = document.getElementById('motto-text');
+            mottoEl.style.color = color;
+            mottoEl.style.fontSize = size;
+        };
+
+        // --- 뽀모도로 타이머 로직 ---
+        let timeLeft = 25 * 60;
+        let timerInterval;
+        let isRunning = false;
+
+        const updateTimerDisplay = () => {
+            const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const s = (timeLeft % 60).toString().padStart(2, '0');
+            document.getElementById('timer-display').innerText = `${m}:${s}`;
+        };
+
+        window.startTimer = function() {
+            if (isRunning) return;
+            isRunning = true;
+            timerInterval = setInterval(async () => {
+                timeLeft--;
+                updateTimerDisplay();
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    isRunning = false;
+                    alert("공부 세션 완료! 데이터가 서버에 저장됩니다.");
+                    timeLeft = 25 * 60; // 25분 리셋
+                    updateTimerDisplay();
+                    
+                    // 파이어베이스에 공부 완료 기록 저장
+                    try {
+                        await addDoc(collection(db, "study_sessions"), {
+                            author: currentUser,
+                            duration: 25, // 25분
+                            timestamp: serverTimestamp()
+                        });
+                    } catch (e) {
+                        console.error("데이터 저장 실패: ", e);
+                    }
+                }
+            }, 1000);
+        };
+
+        window.pauseTimer = function() { clearInterval(timerInterval); isRunning = false; };
+        window.resetTimer = function() { clearInterval(timerInterval); isRunning = false; timeLeft = 25 * 60; updateTimerDisplay(); };
+
+        // --- 파이어베이스 실시간 게시판 ---
+        window.addPost = async function() {
+            const content = document.getElementById('post-content').value;
+            if(!content) return alert("내용을 입력하세요!");
+            
+            try {
+                await addDoc(collection(db, "posts"), {
+                    author: currentUser,
+                    content: content,
+                    timestamp: serverTimestamp()
+                });
+                document.getElementById('post-content').value = ""; // 입력창 초기화
+            } catch (e) {
+                console.error("게시글 업로드 실패: ", e);
+            }
+        };
+
+        // 실시간 게시글 불러오기 (onSnapshot)
+        const q = query(collection(db, "posts"), orderBy("timestamp", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const listEl = document.getElementById('post-list');
+            listEl.innerHTML = "";
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const li = document.createElement('li');
+                li.className = "post-item";
+                li.innerHTML = `<span class="post-author">${data.author}:</span> ${data.content}`;
+                listEl.appendChild(li);
+            });
+        });
+
+        // --- Chart.js 통계 (가짜 데이터 시각화 - 실제 Firestore 연동 시 로직 추가 필요) ---
+        const ctx = document.getElementById('studyChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['월', '화', '수', '목', '금'],
+                datasets: [{
+                    label: '우리 반 일별 뽀모도로 완료(회)',
+                    data: [12, 19, 15, 22, 10], // 추후 Firestore 데이터로 치환
+                    backgroundColor: '#4a90e2',
+                    borderRadius: 5
+                }]
+            },
+            options: { responsive: true }
+        });
+    </script>
+</body>
+</html>
